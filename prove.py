@@ -100,6 +100,7 @@ like it's "inside out".
 
 class ProofRule(enum.Enum):
   REITERATION   = 'reiteration'
+
   OR_INTRO      = 'or-intro'
   OR_ELIM       = 'or-elim'
   AND_INTRO     = 'and-intro'
@@ -112,6 +113,8 @@ class ProofRule(enum.Enum):
   IMPLIES_ELIM  = 'implies-elim'
   IFF_INTRO     = 'iff-intro'
   IFF_ELIM      = 'iff-elim'
+
+  ASSUMPTION    = 'assumption'
 
   def __str__(self):
     return self.value
@@ -132,6 +135,7 @@ class ProofRule(enum.Enum):
       ProofRule.IMPLIES_ELIM  : pretty_IMPLIES + 'E',
       ProofRule.IFF_INTRO     : pretty_IFF + 'I',
       ProofRule.IFF_ELIM      : pretty_IFF + 'E',
+      ProofRule.ASSUMPTION    : 'as',
     }[self]
 
 
@@ -395,6 +399,10 @@ def IFF_ELIM(prop, assumptions):
 @requires_kind(PropKind.BOTTOM)
 def BOTTOM_INTRO(bottom, assumptions):
   for prop in assumptions:
+    prop_proof = Proof(
+      claim = prop,
+      rule  = ProofRule.REITERATION,
+    )
 
     if prop.kind == PropKind.NOT:
       unwrapped_prop = prop.contained
@@ -404,9 +412,9 @@ def BOTTOM_INTRO(bottom, assumptions):
           yield None
         else:
           yield Proof(
-            subproofs       = [unwrapped_proof],
-            claim   = bottom,
-            rule = ProofRule.BOTTOM_INTRO,
+            subproofs = [unwrapped_proof, prop_proof],
+            claim     = bottom,
+            rule      = ProofRule.BOTTOM_INTRO,
           )
 
     else:
@@ -417,9 +425,9 @@ def BOTTOM_INTRO(bottom, assumptions):
           yield None
         else:
           yield Proof(
-            subproofs       = [negated_prop_proof],
-            claim   = bottom,
-            rule = ProofRule.BOTTOM_INTRO,
+            subproofs = [prop_proof, negated_prop_proof],
+            claim     = bottom,
+            rule      = ProofRule.BOTTOM_INTRO,
           )
 
 @requires_kind(PropKind.NOT)

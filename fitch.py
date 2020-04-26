@@ -1,7 +1,7 @@
 from typing import *
 from prove import Proof, ProofRule
 from prop import Prop, PropKind
-from util import indent
+from util import indent, find
 
 """
 
@@ -10,7 +10,7 @@ into a Fitch-style format, and then pretty-printing those proofs.
 
 """
 
-Line = Union['Stmt', 'Block']
+Line = Union['Stmt', 'Bunch', 'Block']
 
 class Stmt:
   """
@@ -34,20 +34,53 @@ class Stmt:
     return f'Stmt({self.claim}, {self.rule})'
 
   @property
+  def stmt_count(self):
+    return 1
+
+  @property
   def span(self):
     return str(self.lineno)
 
   @property
   def pretty(self):
+    if not self.claim:
+      return f'{self.lineno}.'
     if self.prereqs:
       pretty_prereqs = ':' + ','.join(pr.span for pr in self.prereqs)
     else:
       pretty_prereqs = ''
     return f'{self.lineno}. {self.claim}  [{self.rule.pretty}{pretty_prereqs}]'
 
+class Bunch:
+  """
+  Represents many lines grouped together in a Fitch-style proof.
+  Crucially, a Bunch does NOT have an assoicated assumption.
+  The primary role of a Bunch is to serve as the top-level container
+  in a Fitch-style proof, since Fitch-style proofs don't start with
+  assumptions.
+  """
+
+  def __init__(
+    self: 'Bunch',
+    body: List[Line],
+  ) -> 'Bunch':
+
+    self.body = body
+
+  def __str__(self):
+    return '\n'.join(str(line) for line in self.body)
+
+  @property
+  def stmt_count(self):
+    return sum(line.stmt_count for line in self.body)
+
+  @property
+  def pretty(self):
+    return '\n'.join(line.pretty for line in self.body)
+
 class Block:
   """
-  Represents an indented block in a Fich-style proof, which
+  Represents an indented block in a Fitch-style proof, which
   consists of an assumption and multiple lines which make up
   its body.
   """
@@ -55,41 +88,32 @@ class Block:
   def __init__(
     self: 'Block',
     assumption: Optional[Stmt],
-    lines: List[Line],
-    lineno: int,
+    body: List[Line],
   ) -> 'Block':
 
     self.assumption = assumption
-    self.lines = lines
-
-    # Line number of the assumption
-    self.lineno = lineno
+    self.body = body
 
   def __str__(self):
     text = '\n'.join([
       'assuming ' + str(self.assumption) if self.assumption else 'no assumption',
-      *map(str, self.lines),
+      *map(str, self.body),
     ])
     return indent(text, '| ')
 
   @property
   def stmt_count(self):
-    count = 0
-    count += 1  # for assumption
-    for line in self.lines:
-      if isinstance(line, Stmt):
-        count += 1
-      elif isinstance(line, Block):
-        count += line.stmt_count
+    count = 1  # for assumption
+    count += sum(line.stmt_count for line in self.body)
     return count
 
   @property
   def span(self):
-    lo = self.lineno
+    lo = self.assumption.lineno
 
     hi = self
     while isinstance(hi, Block):
-      hi = hi.lines[-1]
+      hi = hi.body[-1]
     hi = hi.lineno
 
     return f'{lo}-{hi}'
@@ -97,19 +121,15 @@ class Block:
   @property
   def pretty(self):
 
-    pretty_header = \
-      f'{self.lineno}. {self.assumption}   [as]' \
-        if self.assumption else f'{self.lineno}.'
-
-    pretty_lines = [
+    pretty_body = [
       ' ' + line.pretty if isinstance(line, Stmt) else line.pretty
-      for line in self.lines
+      for line in self.body
     ]
 
     text = '\n'.join([
-      ' ' + pretty_header,
+      f' {self.assumption.pretty}',
       '───',
-      *pretty_lines,
+      *pretty_body,
     ])
     return indent(text, '│')
 
@@ -149,17 +169,31 @@ def arrange(proof: Proof) -> Block:
 
   return arrange_aux(proof, [], 1)
 
-def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Block:
+def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[Bunch, Block]:
   """
   Same as arrange, but with an extra argument for recursion.
   This argument keeps track of what statements are within a parent scope
   but accessible to us right now
   """
 
-  lines: List[Line] = []
+  def use_lineno():
+    nonlocal lineno
+    no = lineno
+    lineno += 1
+    return no
 
-  assumption_lineno = lineno
-  lineno += 1
+  if proof.assumption is not None:
+    block_assumption = Stmt(
+      prereqs = [],
+      claim = proof.assumption,
+      rule = ProofRule.ASSUMPTION,
+      lineno = use_lineno(),
+    )
+
+    lines: List[Line] = [block_assumption]
+
+  else:
+    lines: List[Line] = []
 
   def context(): return parent_context + lines
 
@@ -168,14 +202,22 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Block:
 
     # Don't bother to include reiterations
     if subproof.rule == ProofRule.REITERATION:
+      reiteration_of = find(
+        lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
+        context()
+      )
+      assert reiteration_of, reiteration_of
+      prereqs.append(reiteration_of)
       continue
 
     # Remove redundancies
-    already_proven = any(
-      isinstance(line, Stmt) and line.claim == subproof.claim
-      for line in lines
+    existing_line = find(
+      lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
+      context()
     )
+    already_proven = existing_line is not None
     if already_proven:
+      prereqs.append(existing_line)
       continue
 
     if not subproof.assumption:
@@ -193,21 +235,21 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Block:
     prereqs = prereqs,
     claim = proof.claim,
     rule = proof.rule,
-    lineno = lineno,
+    lineno = use_lineno(),
   )
   lines.append(stmt)
-  lineno += 1
 
-  return Block(
-    # keep in mind that proof.assumption may be None here
-    assumption = proof.assumption,
-    lines = lines,
-    lineno = assumption_lineno,
-  )
+  if proof.assumption is None:
+    return Bunch(lines)
+  else:
+    return Block(
+      assumption = block_assumption,
+      body = lines[1:],  # remove assumption back out
+    )
 
 def pretty_print(proof: Proof) -> str:
-  block = arrange(proof)
-  return block.pretty
+  fitch = arrange(proof)
+  return fitch.pretty
 
 
 
