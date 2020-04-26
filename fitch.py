@@ -121,17 +121,19 @@ class Block:
   @property
   def pretty(self):
 
-    pretty_body = [
+    pretty_body = '\n'.join(
       ' ' + line.pretty if isinstance(line, Stmt) else line.pretty
       for line in self.body
-    ]
+    )
+
+    bar = '│'
 
     text = '\n'.join([
-      f' {self.assumption.pretty}',
-      '───',
-      *pretty_body,
+      indent(f' {self.assumption.pretty}', bar),
+      '├───',
+      indent(pretty_body, bar),
     ])
-    return indent(text, '│')
+    return text
 
 def arrange(proof: Proof) -> Block:
   """
@@ -205,6 +207,15 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
     # of the subproof itself (i.e. if it has an assumption), meaning
     # that e.g. subproofs of the form "assuming X prove X" will
     # remain in their full form and not be reduced..
+    # This actually happens to be desirable, since it's more
+    # aesthetic to show something like "assuming X prove X" as
+    #   | x
+    #   |---
+    #   | x
+    # and not just as
+    #   | x
+    #   |---
+    # with no body
     existing_line = find(
       lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
       context()
@@ -217,7 +228,7 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
     if not subproof.assumption:
       bunch = arrange_aux(subproof, context(), lineno)
       lineno += bunch.stmt_count
-      lines.extend(bunch.lines)
+      lines.extend(bunch.body)
       # append the last line since that's the one corresponding to the subproof claim
       prereqs.append(bunch.body[-1])
     else:

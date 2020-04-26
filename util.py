@@ -13,38 +13,16 @@ def find(predicate, it):
     if predicate(x):
       return x
 
-def iweave(*iterators):
-  # iweave( ABC, def, 12 ) --> A d 1 B e 2 C f
-  exhausted = [False] * len(iterators)
-  while not all(exhausted):
-    for idx, iterator in enumerate(iterators):
-      if exhausted[idx]:
-        continue
-      try:
-        val = next(iterator)
-        yield val
-      except StopIteration:
-        exhausted[idx] = True
+def share(n, k):
+  """
+  Return all the different ways to split a number N
+  between K different groups.
 
-def icross(itX, itY):
-  # icross( ABC, DEF )
-  # iterates from
-  #      A  B  C
-  #   D  x  x  x
-  #   E  x  x  x
-  #   F  x  x  x
-  # in the order AD, BD, AE, CD, BE, AF, ...
-
-  xs = []
-  ys = []
-
-  while True:
-    xs.append(next(itX))
-    ys.append(next(itY))
-
-    size = len(xs)
-    (x, y) = (size - 1, 0)
-    while x >= 0:
-      yield (xs[x], ys[y])
-      x -= 1
-      y += 1
+  share(4, 2) --> (1, 3), (2, 2), (3, 1)
+  """
+  if k == 1:
+    yield (n,)
+    return
+  for x in range(1, n):
+    for sub in share(n - x, k - 1):
+      yield (x, *sub)
