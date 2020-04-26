@@ -300,23 +300,6 @@ def AND_INTRO(prop, assumptions, size):
     rule      = ProofRule.AND_INTRO,
   )
 
-# TODO
-def AND_ELIM(prop, assumptions, size):
-
-  if size != 1:
-    return None
-
-  and_props = (prop for prop in assumptions if prop.kind == PropKind.AND)
-  is_sufficient = lambda and_prop: prop in [and_prop.left, and_prop.right]
-  sufficients = filter(is_sufficient, and_props)
-  for suff in sufficients:
-    suff_proof = Proof.reiteration(suff)
-    return Proof(
-      subproofs = [suff_proof],
-      claim = prop,
-      rule = ProofRule.AND_ELIM,
-    )
-
 @requires_kind(PropKind.OR)
 def OR_INTRO(prop, assumptions, size):
 
@@ -338,30 +321,6 @@ def OR_INTRO(prop, assumptions, size):
       rule = ProofRule.OR_INTRO,
     )
 
-# TODO
-def OR_ELIM(prop, assumptions, size):
-
-  if size < 3:
-    return None
-
-  or_props = (prop for prop in assumptions if prop.kind == PropKind.OR)
-
-  for or_prop in or_props:
-
-    left_implies_this = Prop(PropKind.IMPLIES, or_prop.left, prop)
-    right_implies_this = Prop(PropKind.IMPLIES, or_prop.right, prop)
-
-    for lit_size, rit_size in share(size - 2, 2):
-      lit_proof = find_proof(left_implies_this, assumptions, lit_size)
-      rit_proof = find_proof(right_implies_this, assumptions, rit_size)
-
-      if None not in [lit_proof, rit_proof]:
-        return Proof(
-          subproofs = [lit_proof, rit_proof],
-          claim     = prop,
-          rule      = ProofRule.OR_ELIM,
-        )
-
 @requires_kind(PropKind.IMPLIES)
 def IMPLIES_INTRO(prop, assumptions, size):
 
@@ -376,24 +335,6 @@ def IMPLIES_INTRO(prop, assumptions, size):
       claim     = prop,
       rule      = ProofRule.IMPLIES_INTRO,
     )
-
-# TODO
-def IMPLIES_ELIM(prop, assumptions, size):
-
-  if size < 3:
-    return None
-
-  implies_props = (prop for prop in assumptions if prop.kind == PropKind.IMPLIES)
-  implies_this = (implies_prop for implies_prop in implies_props if implies_prop.right == prop)
-  for implies_prop in implies_this:
-    implies_proof = Proof.reiteration(implies_prop)
-    antecedent_proof = find_proof(implies_prop.left, assumptions, size - 2)
-    if antecedent_proof is not None:
-      return Proof(
-        subproofs = [implies_proof, antecedent_proof],
-        claim     = prop,
-        rule      = ProofRule.IMPLIES_ELIM,
-      )
 
 @requires_kind(PropKind.IFF)
 def IFF_INTRO(prop, assumptions, size):
@@ -414,24 +355,22 @@ def IFF_INTRO(prop, assumptions, size):
         rule      = ProofRule.IFF_INTRO,
       )
 
-# TODO
-def IFF_ELIM(prop, assumptions, size):
+@requires_kind(PropKind.NOT)
+def NOT_INTRO(prop, assumptions, size):
 
   if size < 3:
     return None
 
-  iff_props = filter(lambda p: p.kind == PropKind.IFF, assumptions)
-  has_this = filter(lambda p: prop in [p.left, p.right], iff_props)
-  for iff_prop in has_this:
-    iff_proof = Proof.reiteration(iff_prop)
-    need_to_prove = iff_prop.left if prop == iff_prop.right else iff_prop.right
-    proof = find_proof(iff_prop.right, assumptions, size - 2)
-    if proof is not None:
-      return Proof(
-        subproofs = [iff_proof, proof],
-        claim     = prop,
-        rule      = ProofRule.IFF_ELIM,
-      )
+  unwrapped_prop = prop.contained
+  bottom_prop = Prop(PropKind.BOTTOM)
+  bottom_proof = find_proof(bottom_prop, assumptions + [unwrapped_prop], size - 2)
+  if bottom_proof is not None:
+    subproof = Proof.wrap(bottom_proof, assumption=unwrapped_prop)
+    return Proof(
+      subproofs = [subproof],
+      claim     = prop,
+      rule      = ProofRule.NOT_INTRO,
+    )
 
 # TODO
 @requires_kind(PropKind.BOTTOM)
@@ -462,22 +401,83 @@ def BOTTOM_INTRO(bottom, assumptions, size):
           rule      = ProofRule.BOTTOM_INTRO,
         )
 
-@requires_kind(PropKind.NOT)
-def NOT_INTRO(prop, assumptions, size):
+# TODO
+def AND_ELIM(prop, assumptions, size):
+
+  if size != 1:
+    return None
+
+  and_props = (prop for prop in assumptions if prop.kind == PropKind.AND)
+  is_sufficient = lambda and_prop: prop in [and_prop.left, and_prop.right]
+  sufficients = filter(is_sufficient, and_props)
+  for suff in sufficients:
+    suff_proof = Proof.reiteration(suff)
+    return Proof(
+      subproofs = [suff_proof],
+      claim = prop,
+      rule = ProofRule.AND_ELIM,
+    )
+
+# TODO
+def OR_ELIM(prop, assumptions, size):
 
   if size < 3:
     return None
 
-  unwrapped_prop = prop.contained
-  bottom_prop = Prop(PropKind.BOTTOM)
-  bottom_proof = find_proof(bottom_prop, assumptions + [unwrapped_prop], size - 2)
-  if bottom_proof is not None:
-    subproof = Proof.wrap(bottom_proof, assumption=unwrapped_prop)
-    return Proof(
-      subproofs = [subproof],
-      claim     = prop,
-      rule      = ProofRule.NOT_INTRO,
-    )
+  or_props = (prop for prop in assumptions if prop.kind == PropKind.OR)
+
+  for or_prop in or_props:
+
+    left_implies_this = Prop(PropKind.IMPLIES, or_prop.left, prop)
+    right_implies_this = Prop(PropKind.IMPLIES, or_prop.right, prop)
+
+    for lit_size, rit_size in share(size - 2, 2):
+      lit_proof = find_proof(left_implies_this, assumptions, lit_size)
+      rit_proof = find_proof(right_implies_this, assumptions, rit_size)
+
+      if None not in [lit_proof, rit_proof]:
+        return Proof(
+          subproofs = [lit_proof, rit_proof],
+          claim     = prop,
+          rule      = ProofRule.OR_ELIM,
+        )
+
+# TODO
+def IMPLIES_ELIM(prop, assumptions, size):
+
+  if size < 3:
+    return None
+
+  implies_props = (prop for prop in assumptions if prop.kind == PropKind.IMPLIES)
+  implies_this = (implies_prop for implies_prop in implies_props if implies_prop.right == prop)
+  for implies_prop in implies_this:
+    implies_proof = Proof.reiteration(implies_prop)
+    antecedent_proof = find_proof(implies_prop.left, assumptions, size - 2)
+    if antecedent_proof is not None:
+      return Proof(
+        subproofs = [implies_proof, antecedent_proof],
+        claim     = prop,
+        rule      = ProofRule.IMPLIES_ELIM,
+      )
+
+# TODO
+def IFF_ELIM(prop, assumptions, size):
+
+  if size < 3:
+    return None
+
+  iff_props = filter(lambda p: p.kind == PropKind.IFF, assumptions)
+  has_this = filter(lambda p: prop in [p.left, p.right], iff_props)
+  for iff_prop in has_this:
+    iff_proof = Proof.reiteration(iff_prop)
+    need_to_prove = iff_prop.left if prop == iff_prop.right else iff_prop.right
+    proof = find_proof(iff_prop.right, assumptions, size - 2)
+    if proof is not None:
+      return Proof(
+        subproofs = [iff_proof, proof],
+        claim     = prop,
+        rule      = ProofRule.IFF_ELIM,
+      )
 
 def NOT_ELIM(prop, assumptions, size):
 
