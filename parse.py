@@ -1,4 +1,4 @@
-from proposition import Proposition
+from prop import Prop, PropKind
 from pretty import *
 
 OPEN_chars    = [pretty_OPEN, '[', '{']
@@ -8,7 +8,7 @@ IFF_chars     = [pretty_IFF, '=']
 OR_chars      = [pretty_OR, '|']
 AND_chars     = [pretty_AND, '&', '^', '.']
 NOT_chars     = [pretty_NOT, '~', '-', '!']
-BOTTOM_chars  = [pretty_BOTTOM]
+BOTTOM_chars  = [pretty_BOTTOM, '#', '_']
 
 BINOPS_chars = [
   *IMPLIES_chars,
@@ -19,53 +19,90 @@ BINOPS_chars = [
 
 def parse(string):
   """
-  Parse a syntactically valid proposition.
-  If the proposition is not syntactically valid,
-  behaviour is undefined.
+  Parse a proposition, returning a Prop object.
   """
-  node, string = parse_top(string)
-  assert string == '', string
+  no_spaces = ''.join(c for c in string if c != ' ')
+  node, leftover = parse_top(no_spaces)
+  if leftover != '':
+    raise ValueError(f"Unexpected leftover: '{leftover}'")
   return node
 
-def parse_top(string):
+def binop_kind(op):
+  """
+  Given a binary operator, e.g. '>', return its kind as a PropKind value
+  """
+  if op in IMPLIES_chars: return PropKind.IMPLIES
+  elif op in IFF_chars  : return PropKind.IFF
+  elif op in OR_chars   : return PropKind.OR
+  elif op in AND_chars  : return PropKind.AND
+  else: raise ValueError(f"Unrecognized operator '{op}'")
 
-  # Attempt to parse a binary operator
+def parse_top(rest):
+  """
+  Top-level parsing function.
+  Takes a string and returns a tuple (prop, rest)
+  where `prop` is a parsed proposition and `rest`
+  is the remaining input.
+  """
 
-  left, string = parse_simple(string)
+  # We start assuming that we're parsing a
+  # binary operator, ...
 
-  if len(string) == 0 or string[0] not in BINOPS_chars:
-    return left, string
+  left, rest = parse_simple(rest)
 
-  op = string[0]
-  string = string[1:]
-  right, string = parse_top(string)
+  # ... but then return early if we decide
+  # that it actually wasn't a binary operator application
+  if len(rest) == 0 or rest[0] not in BINOPS_chars:
+    return left, rest
 
-  if op in IMPLIES_chars: kind = Proposition.kind_IMPLIES
-  if op in IFF_chars    : kind = Proposition.kind_IFF
-  if op in OR_chars     : kind = Proposition.kind_OR
-  if op in AND_chars    : kind = Proposition.kind_AND
+  op = rest[0]
+  rest = rest[1:]
+  right, rest = parse_top(rest)
 
-  node = Proposition(kind, left, right)
+  node = Prop(binop_kind(op), left, right)
+  return (node, rest)
 
-  return (node, string)
+def parse_simple(rest):
+  """
+  Attempt to parse anything besides a binary oeprator
+  """
 
-def parse_simple(string):
-  # parse anything but a binary operator
+  if rest[0] in OPEN_chars:
+    node, rest = parse_top(rest[1:])
+    if rest[0] not in CLOSE_chars:
+      raise ValueError('Unclosed brace')
+    rest = rest[1:]
+    return (node, rest)
 
-  if string[0] in OPEN_chars:
-    node, string = parse_top(string[1:])
-    assert string[0] in CLOSE_chars, string
-    string = string[1:]
-    return (node, string)
+  elif rest[0] in NOT_chars:
+    child, rest = parse_simple(rest[1:])
+    node = Prop(PropKind.NOT, child)
+    return (node, rest)
 
-  elif string[0] in NOT_chars:
-    child, string = parse_top(string[1:])
-    node = Proposition(Proposition.kind_NOT, child)
-    return (node, string)
+  elif rest[0] in BOTTOM_chars:
+    node = Prop(PropKind.BOTTOM)
+    return (node, rest[1:])
 
   else:
-    node = Proposition(Proposition.kind_IDENT, string[0])
-    return (node, string[1:])
+    node = Prop(PropKind.NAME, rest[0])
+    return (node, rest[1:])
 
+if __name__ == '__main__':
 
+  import test
 
+  class Tests(test.Tests):
+
+    def test_1(self):
+
+      expected = \
+        Prop(PropKind.AND,
+          Prop(PropKind.NOT,
+            Prop(PropKind.NAME, 'a')),
+          Prop(PropKind.NAME,  'b'))
+
+      actual = parse('-a.b')
+
+      self.assertEq(expected, actual)
+
+  Tests().go()
