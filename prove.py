@@ -198,7 +198,7 @@ class Proof:
     return f'<Proof of {self.claim}>'
 
   @property
-  def long_form(self):
+  def pretty(self):
     stub = f"prove <{self.claim}> via {self.rule}"
 
     if self.assumption:
@@ -209,16 +209,23 @@ class Proof:
     else:
       text = stub + ':\n'
       for subproof in self.subproofs:
-        text += indent(subproof.long_form, '  ') + '\n'
+        text += indent(subproof.pretty, '  ') + '\n'
       return text
+
+  @staticmethod
+  def reiteration(prop):
+    return Proof(
+      claim = prop,
+      rule = ProofRule.REITERATION,
+    )
 
   @staticmethod
   def wrap(proof, *, assumption):
     return Proof(
-      assumption    = assumption,
-      subproofs       = proof.subproofs,
-      claim         = proof.claim,
-      rule = proof.rule,
+      assumption = assumption,
+      subproofs  = proof.subproofs,
+      claim      = proof.claim,
+      rule       = proof.rule,
     )
 
 def find_proofs(
@@ -243,11 +250,6 @@ def find_proofs(
     NOT_ELIM      (prop, assumptions),
   )
 
-def prove_proposition(prop):
-  proofs = find_proofs(prop, [])
-  valid = (proof for proof in proofs if proof is not None)
-  return next(valid)
-
 def requires_kind(kind):
   def decorator(function):
     @wraps(function)
@@ -263,9 +265,9 @@ def REITERATION(prop, assumptions):
   for known in assumptions:
     if known == prop:
       yield Proof(
-        subproofs       = [],
-        claim   = prop,
-        rule = ProofRule.REITERATION,
+        subproofs = [],
+        claim     = prop,
+        rule      = ProofRule.REITERATION,
       )
 
 @requires_kind(PropKind.AND)
@@ -277,20 +279,20 @@ def AND_INTRO(prop, assumptions):
       yield None
     else:
       yield Proof(
-        subproofs       = [left_proof, right_proof],
-        claim   = prop,
-        rule = ProofRule.AND_INTRO,
+        subproofs = [left_proof, right_proof],
+        claim     = prop,
+        rule      = ProofRule.AND_INTRO,
       )
 
 # TODO
-# same here
 def AND_ELIM(prop, assumptions):
   and_props = (prop for prop in assumptions if prop.kind == PropKind.AND)
   is_sufficient = lambda and_prop: prop in [and_prop.left, and_prop.right]
   sufficients = filter(is_sufficient, and_props)
   for suff in sufficients:
+    suff_proof = Proof.reiteration(suff)
     yield Proof(
-      subproofs = [],
+      subproofs = [suff_proof],
       claim = prop,
       rule = ProofRule.AND_INTRO,
     )
@@ -331,20 +333,20 @@ def IMPLIES_INTRO(prop, assumptions):
       )
 
 # TODO
-# TODO: this will not put the implication as a subproof, meaning it won't be in the ouput
 def IMPLIES_ELIM(prop, assumptions):
   implies_props = (prop for prop in assumptions if prop.kind == PropKind.IMPLIES)
   implies_this = (implies_prop for implies_prop in implies_props if implies_prop.right == prop)
   for implies_prop in implies_this:
+    implies_proof = Proof.reiteration(implies_prop)
     antecedent_proofs = find_proofs(implies_prop.left, assumptions)
     for antecedent_proof in antecedent_proofs:
       if antecedent_proof is None:
         yield None
       else:
         yield Proof(
-          subproofs       = [antecedent_proof],
-          claim   = prop,
-          rule = ProofRule.IMPLIES_ELIM,
+          subproofs = [implies_proof, antecedent_proof],
+          claim     = prop,
+          rule      = ProofRule.IMPLIES_ELIM,
         )
 
 @requires_kind(PropKind.IFF)
@@ -364,46 +366,29 @@ def IFF_INTRO(prop, assumptions):
       )
 
 # TODO
-# same here
 def IFF_ELIM(prop, assumptions):
   iff_props = filter(lambda p: p.kind == PropKind.IFF, assumptions)
-  left_is_this = filter(lambda p: p.left == prop, iff_props)
-  right_is_this = filter(lambda p: p.right == prop, iff_props)
+  has_this = filter(lambda p: prop in [p.left, p.right], iff_props)
 
-  for iff_prop in left_is_this:
-    right_proofs = find_proofs(iff_prop.right, assumptions)
-    for right_proof in right_proofs:
-      if right_proof is None:
+  for iff_prop in has_this:
+    iff_proof = Proof.reiteration(iff_prop)
+    need_to_prove = p.left if prop == p.right else p.right
+    proofs = find_proofs(iff_prop.right, assumptions)
+    for proof in proofs:
+      if proof is None:
         yield None
       else:
         yield Proof(
-          subproofs       = [right_proof],
-          claim   = prop,
-          rule = ProofRule.IFF_ELIM,
-        )
-
-  for iff_prop in right_is_this:
-    left_proofs = find_proofs(iff_prop.left, assumptions)
-    for left_proof in left_proofs:
-      if left_proof is None:
-        yield None
-      else:
-        yield Proof(
-          subproofs       = [left_proof],
-          claim   = prop,
-          rule = ProofRule.IFF_ELIM,
+          subproofs = [iff_proof, proof],
+          claim     = prop,
+          rule      = ProofRule.IFF_ELIM,
         )
 
 # TODO
-# same here
 @requires_kind(PropKind.BOTTOM)
 def BOTTOM_INTRO(bottom, assumptions):
   for prop in assumptions:
-    prop_proof = Proof(
-      claim = prop,
-      rule  = ProofRule.REITERATION,
-    )
-
+    prop_proof = Proof.reiteration(prop)
     if prop.kind == PropKind.NOT:
       unwrapped_prop = prop.contained
       unwrapped_proofs = find_proofs(unwrapped_prop, assumptions)
@@ -455,3 +440,11 @@ def NOT_ELIM(prop, assumptions):
     else:
       yield Proof([double_negated_proof], prop, ProofRule.NOT_ELIM)
 
+
+# == # == # == #
+
+
+def prove_proposition(prop):
+  proofs = find_proofs(prop, [])
+  valid = (proof for proof in proofs if proof is not None)
+  return next(valid)

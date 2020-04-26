@@ -198,19 +198,13 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
   def context(): return parent_context + lines
 
   prereqs = []
-  for subproof_idx, subproof in enumerate(proof.subproofs):
-
-    # Don't bother to include reiterations
-    if subproof.rule == ProofRule.REITERATION:
-      reiteration_of = find(
-        lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
-        context()
-      )
-      assert reiteration_of, reiteration_of
-      prereqs.append(reiteration_of)
-      continue
+  for subproof in proof.subproofs:
 
     # Remove redundancies
+    # Note that the context we search does NOT include the context
+    # of the subproof itself (i.e. if it has an assumption), meaning
+    # that e.g. subproofs of the form "assuming X prove X" will
+    # remain in their full form and not be reduced..
     existing_line = find(
       lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
       context()
@@ -221,10 +215,11 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
       continue
 
     if not subproof.assumption:
-      block = arrange_aux(subproof, context(), lineno)
-      lineno += block.stmt_count
-      lines.extend(block.lines)
-      prereqs.extend(block.lines)
+      bunch = arrange_aux(subproof, context(), lineno)
+      lineno += bunch.stmt_count
+      lines.extend(bunch.lines)
+      # append the last line since that's the one corresponding to the subproof claim
+      prereqs.append(bunch.body[-1])
     else:
       block = arrange_aux(subproof, context(), lineno)
       lineno += block.stmt_count
