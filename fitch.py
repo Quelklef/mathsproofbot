@@ -3,16 +3,29 @@ from prove import Proof, ProofRule
 from prop import Prop, PropKind
 from util import indent
 
+"""
+
+This module handles transforming proofs from the tree format
+into a Fitch-style format, and then pretty-printing those proofs.
+
+"""
+
 Line = Union['Stmt', 'Block']
 
 class Stmt:
+  """
+  Represents a single statement in a Fitch-style proof.
+  """
+
   def __init__(
     self: 'Stmt',
+    prereqs: List[Line],
     claim: Prop,
     rule: ProofRule,
     lineno: int,
   ) -> 'Line':
 
+    self.prereqs = prereqs
     self.claim = claim
     self.rule = rule
     self.lineno = lineno
@@ -26,9 +39,19 @@ class Stmt:
 
   @property
   def pretty(self):
-    return f'{self.lineno}. {self.claim}  [{self.rule.pretty}]'
+    if self.prereqs:
+      pretty_prereqs = ':' + ','.join(pr.span for pr in self.prereqs)
+    else:
+      pretty_prereqs = ''
+    return f'{self.lineno}. {self.claim}  [{self.rule.pretty}{pretty_prereqs}]'
 
 class Block:
+  """
+  Represents an indented block in a Fich-style proof, which
+  consists of an assumption and multiple lines which make up
+  its body.
+  """
+
   def __init__(
     self: 'Block',
     assumption: Optional[Stmt],
@@ -140,6 +163,7 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Block:
 
   def context(): return parent_context + lines
 
+  prereqs = []
   for subproof_idx, subproof in enumerate(proof.subproofs):
 
     # Don't bother to include reiterations
@@ -158,12 +182,15 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Block:
       block = arrange_aux(subproof, context(), lineno)
       lineno += block.stmt_count
       lines.extend(block.lines)
+      prereqs.extend(block.lines)
     else:
       block = arrange_aux(subproof, context(), lineno)
       lineno += block.stmt_count
       lines.append(block)
+      prereqs.append(block)
 
   stmt = Stmt(
+    prereqs = prereqs,
     claim = proof.claim,
     rule = proof.rule,
     lineno = lineno,
