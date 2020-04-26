@@ -232,6 +232,10 @@ def find_proofs(
   prop: Prop,
   assumptions: List[Prop],
 ):
+  # TODO: the output of the following reveals that this doesn't
+  #       seem to actaully be breadth-first
+  # print('\t'.join([str(asm) for asm in assumptions]))
+  # input()
 
   yield None
 
@@ -372,7 +376,7 @@ def IFF_ELIM(prop, assumptions):
 
   for iff_prop in has_this:
     iff_proof = Proof.reiteration(iff_prop)
-    need_to_prove = p.left if prop == p.right else p.right
+    need_to_prove = iff_prop.left if prop == iff_prop.right else iff_prop.right
     proofs = find_proofs(iff_prop.right, assumptions)
     for proof in proofs:
       if proof is None:
@@ -426,9 +430,9 @@ def NOT_INTRO(prop, assumptions):
     else:
       block = Proof.wrap(bottom_proof, assumption=unwrapped_prop)
       yield Proof(
-        subproofs       = [block],
-        claim   = prop,
-        rule = ProofRule.NOT_INTRO,
+        subproofs = [block],
+        claim     = prop,
+        rule      = ProofRule.NOT_INTRO,
       )
 
 def NOT_ELIM(prop, assumptions):
@@ -438,7 +442,11 @@ def NOT_ELIM(prop, assumptions):
     if double_negated_proof is None:
       yield None
     else:
-      yield Proof([double_negated_proof], prop, ProofRule.NOT_ELIM)
+      yield Proof(
+        subproofs = [double_negated_proof],
+        claim     = prop,
+        rule      = ProofRule.NOT_ELIM,
+      )
 
 
 # == # == # == #
