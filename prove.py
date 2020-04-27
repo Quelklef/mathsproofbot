@@ -49,11 +49,10 @@ that the rule is applied to (and, recursively, their proofs, as well).
 
 For example, if we assume Q, then a proof of Q & (Q | S) would look like:
 
-  prove <Q & (Q | S)> via or-intro:
+  prove <Q & (Q | S)> via and-intro:
     prove <Q> via reiteration
-    prove <Q | S> via and-intro:
+    prove <Q | S> via or-intro:
       prove <Q> via reiteration
-      prove <S> via reiteration
 
 Note that all leaf nodes must be reiteration nodes.
 
