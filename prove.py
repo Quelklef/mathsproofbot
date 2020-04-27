@@ -730,14 +730,11 @@ def NOT_ELIM(prop, assumptions, size):
 # == # == # == #
 
 
-def prove_proposition(prop, *, max_size=None):
+def prove_proposition(prop):
 
   size = 1
 
   while True:
-
-    if max_size and size > max_size:
-      return None
 
     proof = find_proof(prop, [], size)
     if proof is not None:

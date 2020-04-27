@@ -3,9 +3,9 @@ from prove import prove_proposition
 from fitch import arrange
 
 
-def prove(string, *, max_size):
+def prove(string):
   proposition = parse(string)
-  proof = prove_proposition(proposition, max_size=max_size)
+  proof = prove_proposition(proposition)
   if proof is None:
     return None
   fitch = arrange(proof)

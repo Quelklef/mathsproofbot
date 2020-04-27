@@ -66,7 +66,7 @@ def long_reply_to_tweet(tweet_id, response):
     tweet = reply_to_tweet(tweet_id, chunk)
     tweet_id = tweet.id
 
-def try_prove_tweet(tweet_id, tweet_text):
+def prove_tweet(tweet_id, tweet_text):
   """
   For a tweet that contains a logical proposition, try to
   prove the proposition and reply to the tweet with the proof.
@@ -74,13 +74,10 @@ def try_prove_tweet(tweet_id, tweet_text):
   just return without doing anything.
   """
   print('Got a new theorem to prove: ' + tweet_text)
-  proof = prove(tweet_text, max_size=25)
-  if proof is None:
-    print('Failed to prove.')
-  else:
-    proof = 'Proof:\n\n' + proof
-    print(proof)
-    long_reply_to_tweet(tweet_id, proof)
+  proof = prove(tweet_text)
+  proof = 'Proof:\n\n' + proof
+  print(proof)
+  long_reply_to_tweet(tweet_id, proof)
 
 def already_proven(status):
   """
@@ -102,7 +99,7 @@ mathslogicbot_id = '2871456406'
 
 class MyStreamListener(tweepy.StreamListener):
   def on_status(self, tweet):
-    try_prove_tweet(tweet.id, tweet.text)
+    prove_tweet(tweet.id, tweet.text)
 
 def listen_to_mathslogicbot():
   listener = MyStreamListener()
@@ -112,10 +109,25 @@ def listen_to_mathslogicbot():
 
 def prove_from_mathslogicbot_timeline():
   timeline = get_timeline(mathslogicbot_id)
-  unproven = it.filterfalse(already_proven, timeline)
-  for status in unproven:
-    try_prove_tweet(status.id, status.full_text)
+  for status in timeline:
+    if already_proven(status):
+      print(f"Already proved {status.full_text}")
+    else:
+      prove_tweet(status.id, status.full_text)
 
 if __name__ == '__main__':
-  prove_from_mathslogicbot_timeline()
-  listen_to_mathslogicbot()
+
+  import traceback
+
+  with open('log.log', 'a') as f:
+
+    while True:
+      try:
+        prove_from_mathslogicbot_timeline()
+        listen_to_mathslogicbot()
+      except KeyboardInterrupt as e:
+        break
+      except Exception as e:
+        s = traceback.format_exc()
+        print(s)
+        f.write(s)
