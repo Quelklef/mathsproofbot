@@ -51,22 +51,22 @@ class Stmt:
       pretty_prereqs = ''
     return f'{self.lineno}. {self.claim}  [{self.kind.pretty}{pretty_prereqs}]'
 
-def prettify_lines(lines):
+def prettify_lines(lines, indent=True):
 
-  text_lins = []
+  text_lines = []
 
   for idx, line in enumerate(lines):
     if isinstance(line, Stmt):
-      text_lins.append(' ' + line.pretty)
+      text_lines.append(' ' * indent + line.pretty)
     elif isinstance(line, Block):
       next_line = idx != len(lines) - 1 and lines[idx + 1]
-      text_lins.append(line.pretty)
+      text_lines.append(line.pretty)
       if isinstance(next_line, Block):
-        text_lins.append('')
+        text_lines.append('')
     else:
       assert False
 
-  return '\n'.join(text_lins)
+  return '\n'.join(text_lines)
 
 class Bunch:
   """
@@ -93,7 +93,7 @@ class Bunch:
 
   @property
   def pretty(self):
-    return prettify_lines(self.body)
+    return prettify_lines(self.body, False)
 
 class Block:
   """

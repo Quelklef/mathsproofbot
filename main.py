@@ -15,7 +15,7 @@ def prove(string, *, max_size):
 
 if __name__ == '__main__':
 
-  string = '(a⇿(a⇿(a∨¬a)))'
+  string = '(a∨(b∨(¬b∨c)))'
   print(f'string: {string}\n')
 
   proposition = parse(string)
