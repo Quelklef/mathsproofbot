@@ -1,5 +1,5 @@
 import tweepy
-import itertools as it
+import time
 
 # if it doesn't exist, create a twitter_auth.py with the following 4 values
 from auth_twitter import consumer_key, consumer_secret, access_token, access_token_secret
@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
     while True:
       try:
-        prove_from_mathslogicbot_timeline()
+        #prove_from_mathslogicbot_timeline()
         listen_to_mathslogicbot()
       except KeyboardInterrupt as e:
         break
@@ -131,3 +131,6 @@ if __name__ == '__main__':
         s = traceback.format_exc()
         print(s)
         f.write(s)
+
+        # Sleep for 10 hours before trying again
+        time.sleep(10 * 60 * 60)
