@@ -203,7 +203,7 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
   for subproof in proof.subproofs:
 
     # Remove redundancies
-    # Note that the context we search does NOT include the context
+    # Note that the context() we search does NOT include the context
     # of the subproof itself (i.e. if it has an assumption), meaning
     # that e.g. subproofs of the form "assuming X prove X" will
     # remain in their full form and not be reduced..
@@ -216,10 +216,19 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
     #   | x
     #   |---
     # with no body
-    existing_line = find(
-      lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
-      context()
-    )
+    if subproof.assumption is None:
+      existing_line = find(
+        lambda line: isinstance(line, Stmt) and line.claim == subproof.claim,
+        context()
+      )
+    else:
+      existing_line = find(
+        lambda line:
+          isinstance(line, Block)
+            and line.assumption == subproof.assumption
+            and line.body[-1] == subproof.claim,
+        context()
+      )
     already_proven = existing_line is not None
     if already_proven:
       prereqs.append(existing_line)
