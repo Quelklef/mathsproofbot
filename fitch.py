@@ -1,5 +1,5 @@
 from typing import *
-from prove import Proof, ProofRule
+from prove import Proof, ProofKind
 from prop import Prop, PropKind
 from util import indent, find
 
@@ -21,17 +21,17 @@ class Stmt:
     self: 'Stmt',
     prereqs: List[Line],
     claim: Prop,
-    rule: ProofRule,
+    kind: ProofKind,
     lineno: int,
   ) -> 'Line':
 
     self.prereqs = prereqs
     self.claim = claim
-    self.rule = rule
+    self.kind = kind
     self.lineno = lineno
 
   def __str__(self):
-    return f'Stmt({self.claim}, {self.rule})'
+    return f'Stmt({self.claim}, {self.kind})'
 
   @property
   def stmt_count(self):
@@ -49,7 +49,7 @@ class Stmt:
       pretty_prereqs = ':' + ','.join(pr.span for pr in self.prereqs)
     else:
       pretty_prereqs = ''
-    return f'{self.lineno}. {self.claim}  [{self.rule.pretty}{pretty_prereqs}]'
+    return f'{self.lineno}. {self.claim}  [{self.kind.pretty}{pretty_prereqs}]'
 
 class Bunch:
   """
@@ -188,7 +188,7 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
     block_assumption = Stmt(
       prereqs = [],
       claim = proof.assumption,
-      rule = ProofRule.ASSUMPTION,
+      kind = ProofKind.ASSUMPTION,
       lineno = use_lineno(),
     )
 
@@ -239,9 +239,9 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
 
   stmt = Stmt(
     prereqs = prereqs,
-    claim = proof.claim,
-    rule = proof.rule,
-    lineno = use_lineno(),
+    claim   = proof.claim,
+    kind    = proof.kind,
+    lineno  = use_lineno(),
   )
   lines.append(stmt)
 

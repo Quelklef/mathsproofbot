@@ -26,3 +26,13 @@ def share(n, k):
   for x in range(1, n):
     for sub in share(n - x, k - 1):
       yield (x, *sub)
+
+def other(x, ab):
+  """
+    other(1, [1, 2]) = 2
+    other(2, [1, 2]) = 1
+  """
+  a, b = ab
+  if x == a: return b
+  if x == b: return a
+  assert False, (x, ab)

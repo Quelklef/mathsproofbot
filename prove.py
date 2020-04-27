@@ -4,7 +4,7 @@ import enum
 
 from prop import Prop, PropKind
 from pretty import *
-from util import indent, find, share
+from util import indent, find, share, other
 
 
 """
@@ -98,7 +98,7 @@ like it's "inside out".
 """
 
 
-class ProofRule(enum.Enum):
+class ProofKind(enum.Enum):
   REITERATION   = 'reiteration'
 
   OR_INTRO      = 'or-intro'
@@ -122,20 +122,20 @@ class ProofRule(enum.Enum):
   @property
   def pretty(self):
     return {
-      ProofRule.REITERATION   : 're',
-      ProofRule.OR_INTRO      : pretty_OR + 'I',
-      ProofRule.OR_ELIM       : pretty_OR + 'E',
-      ProofRule.AND_INTRO     : pretty_AND + 'I',
-      ProofRule.AND_ELIM      : pretty_AND + 'E',
-      ProofRule.NOT_INTRO     : pretty_NOT + 'I',
-      ProofRule.NOT_ELIM      : pretty_NOT + 'E',
-      ProofRule.BOTTOM_INTRO  : pretty_BOTTOM + 'I',
-      ProofRule.BOTTOM_ELIM   : pretty_BOTTOM + 'E',
-      ProofRule.IMPLIES_INTRO : pretty_IMPLIES + 'I',
-      ProofRule.IMPLIES_ELIM  : pretty_IMPLIES + 'E',
-      ProofRule.IFF_INTRO     : pretty_IFF + 'I',
-      ProofRule.IFF_ELIM      : pretty_IFF + 'E',
-      ProofRule.ASSUMPTION    : 'as',
+      ProofKind.REITERATION   : 're',
+      ProofKind.OR_INTRO      : pretty_OR + 'I',
+      ProofKind.OR_ELIM       : pretty_OR + 'E',
+      ProofKind.AND_INTRO     : pretty_AND + 'I',
+      ProofKind.AND_ELIM      : pretty_AND + 'E',
+      ProofKind.NOT_INTRO     : pretty_NOT + 'I',
+      ProofKind.NOT_ELIM      : pretty_NOT + 'E',
+      ProofKind.BOTTOM_INTRO  : pretty_BOTTOM + 'I',
+      ProofKind.BOTTOM_ELIM   : pretty_BOTTOM + 'E',
+      ProofKind.IMPLIES_INTRO : pretty_IMPLIES + 'I',
+      ProofKind.IMPLIES_ELIM  : pretty_IMPLIES + 'E',
+      ProofKind.IFF_INTRO     : pretty_IFF + 'I',
+      ProofKind.IFF_ELIM      : pretty_IFF + 'E',
+      ProofKind.ASSUMPTION    : 'as',
     }[self]
 
 
@@ -146,19 +146,19 @@ class Proof:
   Represents a node in the proof tree. For instance, the tree
 
     assuming <S>, prove <Q | S> via disjunction-intro:
-      observe <Q>
-      observe <S>
+      prove <Q> via reiteration
+      prove <S> via reiteration
 
   is reified as
 
     observe_Q_proof = Proof(
       claim = Prop(PropKind.NAME, 'Q'),
-      rule = ProofRule.REITERATION,
+      kind = ProofKind.REITERATION,
     )
 
     observe_S_proof = Proof(
       claim = Prop(PropKind.NAME, 'S'),
-      rule = ProofRule.REITERATION,
+      kind = ProofKind.REITERATION,
     )
 
     root_proof = Proof(
@@ -168,7 +168,7 @@ class Proof:
         observe_S_proof,
       ],
       claim = parse('Q | S'),  # don't have to make the Prop manually
-      rule = ProofRule.OR_INTRO,
+      kind = ProofKind.OR_INTRO,
     )
 
   """
@@ -179,27 +179,27 @@ class Proof:
       assumption: Prop = None,
       subproofs: List['Proof'] = [],
       claim: Prop,
-      rule: ProofRule,
+      kind: ProofKind,
     ) -> 'Proof':
 
     self.assumption = assumption
     self.subproofs = subproofs
     self.claim = claim
-    self.rule = rule
+    self.kind = kind
 
   def __eq__(self, other):
     return (type(self) == type(other)
       and self.assumption == other.assumption
       and self.subproofs == other.subproofs
       and self.claim == other.claim
-      and self.rule == other.rule)
+      and self.kind == other.kind)
 
   def __repr__(self):
     return f'<Proof of {self.claim}>'
 
   @property
   def pretty(self):
-    text = f"prove <{self.claim}> via {self.rule}"
+    text = f"prove <{self.claim}> via {self.kind}"
     if self.assumption:
       text = f'assuming <{self.assumption}>, ' + text
     if self.subproofs:
@@ -212,27 +212,67 @@ class Proof:
   def reiteration(prop):
     return Proof(
       claim = prop,
-      rule = ProofRule.REITERATION,
-    )
-
-  @staticmethod
-  def wrap(proof, *, assumption):
-    return Proof(
-      assumption = assumption,
-      subproofs  = proof.subproofs,
-      claim      = proof.claim,
-      rule       = proof.rule,
+      kind = ProofKind.REITERATION,
     )
 
 def find_proof(
   prop: Prop,
   assumptions: List[Prop],
   size: int,
-):
-  # TODO: the output of the following reveals that this doesn't
-  #       seem to actaully be breadth-first
-  # print('\t'.join([str(asm) for asm in assumptions]))
-  # input()
+  *,
+  assuming: Optional[Prop] = None,
+) -> Proof:
+
+  """
+
+  Search for a proof of the given proposition with the given size.
+  If no proof of the given size [1] exists, returns None.
+
+  - The 'prop' argument is the goal we're trying to prove.
+
+  - The 'size' argument is the target size of the proof.
+
+  - The 'assumptions' argument is a list of propositions which is what
+    we have assumed in the proof up to now.
+
+    So let's say we're part way through a proof, like this:
+
+      prove <A -> (A & (A | A))> via implies-intro:
+        assuming <A>, prove <A & (A | A)> via and-intro:
+          prove <A> via reiteration
+          prove <A | A> via ?? (WE ARE HERE)
+
+    then what we have already assumed is <A>, so the 'assumptions'
+    argument should be the list [Proof(ProofKind.NAME, 'A')].
+
+ - The 'assuming' argument is similar to 'assumptions' but subtly
+   different. If 'assuming' is not None, then it represents an
+   assumption we're making ON the proof we're searching for.
+
+   So if we're earlier on the same proof, say, here:
+
+      prove <A -> (A & (A | A))> via implies-intro:
+        assuming <A>, prove <A & (A | A)> via ?? (WE ARE HERE)
+
+   then we would have that 'assumptions' is an empty list
+   but 'assuming' is the proposition Proof(ProofKind.NAME, 'A')
+
+  [1] The "size" of a proof is defined to be
+
+    [number of rules] + [number of assumptions]
+
+  Thus the size of e.g.
+
+    assuming <Q>, prove <Q | Q> via disjunction-intro:
+      prove <Q> via reiteration
+      prove <Q> via reiteration
+
+  is 5:
+    +1 for "assuming <Q>"
+    +1 for disjunction-intro
+    +2 for 2x reiteration
+
+  """
 
   if size <= 0:
     return None
@@ -252,23 +292,49 @@ def find_proof(
     NOT_ELIM,
   )
 
-  for searcher in searchers:
-    result = searcher(prop, assumptions, size)
-    if result is not None:
-      return result
+  if assuming:
+    for searcher in searchers:
+      proof = searcher(prop, assumptions + [assuming], size)
+      if proof is not None:
+        proof.assumption = assuming
+        return proof
 
-def requires_kind(kind):
-  def decorator(function):
-    @wraps(function)
-    def wrapper(prop, assumptions, size):
-      if prop.kind != kind:
-        return None
-      else:
-        return function(prop, assumptions, size)
-    return wrapper
-  return decorator
+  else:
+    for searcher in searchers:
+      proof = searcher(prop, assumptions, size)
+      if proof is not None:
+        return proof
+
+"""
+
+Our proof-searching functions each look for a proof of
+the given proposition that uses a particular kind. So
+the function AND_ELIM will try to prove our proposition
+by using an and-elim kind.
+
+For instance, say we're trying to prove <Q | S>. If we
+ask AND_ELIM to prove this, then it will try to prove it
+using an and-elim, which it will to by first trying to
+prove something of the form <[subproposition] & (Q | S)>;
+if it is able to prove something of this form, then it will
+return the proof
+
+  prove <Q | S> via and-elim:
+    prove <[subproposition] & (Q | S)> via [rule]:
+      [subproofs]
+
+Each function is expected to return a Proof object if it
+is able to find a proof; otherwise, it will return None.
+
+"""
 
 def REITERATION(prop, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <[prop]> via reiteration
+
+  """
 
   if size != 1:
     return None
@@ -278,220 +344,388 @@ def REITERATION(prop, assumptions, size):
       return Proof(
         subproofs = [],
         claim     = prop,
-        rule      = ProofRule.REITERATION,
+        kind      = ProofKind.REITERATION,
       )
 
-@requires_kind(PropKind.AND)
-def AND_INTRO(prop, assumptions, size):
+"""
 
-  if size < 3:
-    return None
+INTRO rules
 
-  for lsize, rsize in share(size - 1, 2):
-    left_proof = find_proof(prop.left, assumptions, lsize)
-    right_proof = find_proof(prop.right, assumptions, rsize)
+All INTRO rules share some similarities.
 
-  if None in [left_proof, right_proof]:
-    return None
+1) For one, they will only work to prove propositions of a
+certain kind: and-intro can only prove conjunctions; or-intro
+can only prove disjunctions, etc.
 
-  return Proof(
-    subproofs = [left_proof, right_proof],
-    claim     = prop,
-    rule      = ProofRule.AND_INTRO,
-  )
+2) Additionally, they all have minimum size constraints.
+What I mean by this is that if we want to use, say, or-intro
+to prove something, then we know that the resultant proof
+will be of the form
 
-@requires_kind(PropKind.OR)
-def OR_INTRO(prop, assumptions, size):
+  prove [proposition] via or-intro:
+    prove [subproposition_1] via [rule_1]:
+      ...
+    prove [subproposition_2] via [rule_2]:
+      ...
 
-  if size < 3:
-    return None
+Note that the '...' does not designate a necessary existence of
+grandchildren proofs. If the subproofs are reiterations,
+then there will be no granchildren proofs.
 
-  for lsize, rsize in share(size - 1, 2):
-    left_proof = find_proof(prop.left, assumptions, lsize)
-    right_proof = find_proof(prop.right, assumptions, rsize)
+The smallest possible proof that this can produce will come
+about if both subproofs are reiterations. This looks like:
 
-    if [left_proof, right_proof] == [None, None]:
-      return None
+  prove [proposition] via or-intro:
+    prove [subproposition_1] via reiteration
+    prove [subproposition_2] via reiteration
 
-    proof = next(proof for proof in (left_proof, right_proof) if proof is not None)
+This proof has a size of 3.
 
-    return Proof(
-      subproofs = [proof],
-      claim = prop,
-      rule = ProofRule.OR_INTRO,
-    )
+Thus, we know that an application of or-intro will ALWAYS produce
+a proof with size 3 or greater. Thus, if OR_INTRO is called with
+a size less than 3, we can immediately return None.
 
-@requires_kind(PropKind.IMPLIES)
-def IMPLIES_INTRO(prop, assumptions, size):
+In general, all INTRO rules will have a minimum size due to
+their form.
 
-  if size < 3:
-    return None
+"""
 
-  inner_proof = find_proof(prop.right, assumptions + [prop.left], size - 2)
+def proofify(proof_kind: ProofKind):
+  def decorator(function):
 
-  if inner_proof is not None:
-    return Proof(
-      subproofs = [Proof.wrap(inner_proof, assumption=prop.left)],
-      claim     = prop,
-      rule      = ProofRule.IMPLIES_INTRO,
-    )
+    @wraps(function)
+    def wrapper(goal, assumption, size):
+      subproofs = function(goal, assumption, size)
 
-@requires_kind(PropKind.IFF)
-def IFF_INTRO(prop, assumptions, size):
+      if subproofs is None:
+        return None
 
-  if size < 3:
-    return None
-
-  ltr_prop = Prop(PropKind.IMPLIES, prop.left, prop.right)
-  rtl_prop = Prop(PropKind.IMPLIES, prop.right, prop.left)
-
-  for ltr_size, rtl_size in share(size - 1, 2):
-    ltr_proof = find_proof(ltr_prop, assumptions, ltr_size)
-    rtl_proof = find_proof(rtl_prop, assumptions, rtl_size)
-    if None not in [ltr_proof, rtl_proof]:
       return Proof(
-        subproofs = [ltr_proof, rtl_proof],
-        claim     = prop,
-        rule      = ProofRule.IFF_INTRO,
+        subproofs = subproofs,
+        claim     = goal,
+        kind      = proof_kind,
       )
 
-@requires_kind(PropKind.NOT)
-def NOT_INTRO(prop, assumptions, size):
+    return wrapper
+  return decorator
 
-  if size < 3:
-    return None
+def min_size(min_size: int):
+  def decorator(function):
 
-  unwrapped_prop = prop.contained
-  bottom_prop = Prop(PropKind.BOTTOM)
-  bottom_proof = find_proof(bottom_prop, assumptions + [unwrapped_prop], size - 2)
-  if bottom_proof is not None:
-    subproof = Proof.wrap(bottom_proof, assumption=unwrapped_prop)
-    return Proof(
-      subproofs = [subproof],
-      claim     = prop,
-      rule      = ProofRule.NOT_INTRO,
-    )
+    @wraps(function)
+    def wrapper(goal, assumptions, size):
+      if size < min_size:
+        return None
+      return function(goal, assumptions, size)
 
-# TODO
-@requires_kind(PropKind.BOTTOM)
-def BOTTOM_INTRO(bottom, assumptions, size):
+    return wrapper
+  return decorator
 
-  if size < 3:
-    return None
+def exact_size(required_size: int):
+  def decorator(function):
+
+    @wraps(function)
+    def wrapper(goal, assumptions, size):
+      if size != required_size:
+        return None
+      return function(goal, assumptions, size)
+
+    return wrapper
+  return decorator
+
+def prop_kind(prop_kind: PropKind):
+  def decorator(function):
+
+    @wraps(function)
+    def wrapper(goal, assumptions, size):
+      if goal.kind != prop_kind:
+        return None
+      return function(goal, assumptions, size)
+
+    return wrapper
+  return decorator
+
+@min_size(3)
+@proofify(ProofKind.AND_INTRO)
+@prop_kind(PropKind.AND)
+def AND_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <[left] & [right]> via and-intro:
+      prove <[left]> via [rule]: ...
+      prove <[right]> via [rule]: ...
+
+  """
+
+  for lsize, rsize in share(size - 1, 2):
+    lproof = find_proof(goal.left, assumptions, lsize)
+    rproof = find_proof(goal.right, assumptions, rsize)
+
+    subproofs = [lproof, rproof]
+    if None not in subproofs:
+      return subproofs
+
+@min_size(2)
+@proofify(ProofKind.OR_INTRO)
+@prop_kind(PropKind.OR)
+def OR_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <[left] | [right]> via or-intro:
+      prove <[left]> via [rule]: ...
+
+  or of the form
+
+    prove <[left] | [right]> via or-intro:
+      prove <[right]> via [rule]: ...
+
+  """
+
+  for lsize, rsize in share(size - 1, 2):
+    lproof = find_proof(goal.left, assumptions, lsize)
+    rproof = find_proof(goal.right, assumptions, rsize)
+    if lproof is not None: return [lproof]
+    if rproof is not None: return [rproof]
+
+@min_size(3)
+@proofify(ProofKind.IMPLIES_INTRO)
+@prop_kind(PropKind.IMPLIES)
+def IMPLIES_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <[left] -> [right]> via implies-intro:
+      assuming <[left]>, prove <[right]> via [rule]: ...
+
+  """
+  subproof = find_proof(goal.right, assumptions, size - 2, assuming=goal.left)
+  if subproof is not None:
+    return [subproof]
+
+@min_size(5)
+@proofify(ProofKind.IFF_INTRO)
+@prop_kind(PropKind.IFF)
+def IFF_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <[left] <-> [right]> via iff-intro:
+      assuming <[left]>, prove <[right]> via [rule]: ...
+      assuming <[right]>, prove <[left]> via [rule]: ...
+
+  """
+  for ltr_size, rtl_size in share(size - 1, 2):
+    ltr_subproof = find_proof(goal.right, assumptions, ltr_size, assuming=goal.left)
+    rtl_subproof = find_proof(goal.left, assumptions, rtl_size, assuming=goal.right)
+    subproofs = [ltr_subproof, rtl_subproof]
+    if None not in subproofs:
+      return subproofs
+
+@min_size(3)
+@proofify(ProofKind.NOT_INTRO)
+@prop_kind(PropKind.NOT)
+def NOT_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <~[prop]> via not-intro:
+      assuming <[prop]>, prove <#> via [rule]: ...
+
+  """
+  unwrapped_goal = goal.contained
+  subproof = find_proof(Prop(PropKind.BOTTOM), assumptions, size - 2, assuming=unwrapped_goal)
+  if subproof is not None:
+    return [subproof]
+
+"""
+
+All following proof generators, both INTRO and ELIM rules,
+are tricky in a particular aspect, which is that they all,
+in a sense, include a wild card.
+
+Take bottom-intro, for example. With a not-intro, what we
+had to generate was clear. If we're tring to generate
+the proof
+
+  prove <~A> via not-intro:
+    assuming <A>, prove <#> via [rule]: ...
+
+then we need to generate <#>, after assuming <A>.
+
+However, it's not so clear with e.g. bottom-intro. This
+is because bottom-intro works on two propositions of
+the form <[prop]> and <~[prop]>, where [prop] can be
+ANYTHING, no matter how large or small. This is what
+I mean by 'wildcard'. ELIM rules share a similar issue:
+if I want to prove <A> via an implies-elim, then I
+need a statement of the form <[prop] -> A> and one
+of the form <[prop]> where [prop] can be ANYTHING.
+
+The way we deal with this is to /only/ fill in [prop]
+with propositions in the passed-down 'assumptions'
+value, i.e., propositions that we have assumed within
+a parent proof.
+
+So, for instance, if we're part way through a proof like so:
+
+  prove <A -> (B -> A)> via implies-intro:
+    assuming <A>, prove <B -> A> via implies-intro:
+      assuming <B>, prove <A> via not-elim:
+        prove <~~A> via not-intro:
+          assuming <~A>, prove <#> via ?? (WE ARE HERE)
+
+Now we want to generate a bottom. A bottom can be generated
+from any statement and its negation. However, we will only
+try those statements which have been assumed, namely,
+
+  <A>, <B>, and <~A>
+
+
+To be completely sincere, I am not sure if using this heuristic
+retains program correctness. Perhaps it is the case that
+some proof requires being "clever" in a way that violates
+this heuristic. However, I don't think /think/ this is the
+case, though I have yet to prove it.
+
+"""
+
+@min_size(3)
+@proofify(ProofKind.BOTTOM_INTRO)
+@prop_kind(PropKind.BOTTOM)
+def BOTTOM_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <#> via bottom-intro:
+      prove <[prop]> via [rule]: ...
+      prove <~[prop]> via [rule]: ...
+
+  """
 
   for prop in assumptions:
     prop_proof = Proof.reiteration(prop)
+
     if prop.kind == PropKind.NOT:
-      unwrapped_prop = prop.contained
-      unwrapped_proof = find_proof(unwrapped_prop, assumptions, size - 2)
+      unwrapped = prop.contained
+      unwrapped_proof = find_proof(unwrapped, assumptions, size - 2)
       if unwrapped_proof is not None:
-        return Proof(
-          subproofs = [unwrapped_proof, prop_proof],
-          claim     = bottom,
-          rule      = ProofRule.BOTTOM_INTRO,
-        )
+        return [unwrapped_proof, prop_proof]
 
     else:
-      negated_prop = Prop(PropKind.NOT, prop)
-      negated_prop_proof = find_proof(negated_prop, assumptions, size - 2)
-      if negated_prop_proof is not None:
-        return Proof(
-          subproofs = [prop_proof, negated_prop_proof],
-          claim     = bottom,
-          rule      = ProofRule.BOTTOM_INTRO,
-        )
+      negated = Prop(PropKind.NOT, prop)
+      negated_proof = find_proof(negated, assumptions, size - 2)
+      if negated_proof is not None:
+        return [prop_proof, negated_proof]
 
-# TODO
-def AND_ELIM(prop, assumptions, size):
+"""
 
-  if size != 1:
-    return None
+ELIM rules
 
-  and_props = (prop for prop in assumptions if prop.kind == PropKind.AND)
-  is_sufficient = lambda and_prop: prop in [and_prop.left, and_prop.right]
-  sufficients = filter(is_sufficient, and_props)
-  for suff in sufficients:
-    suff_proof = Proof.reiteration(suff)
-    return Proof(
-      subproofs = [suff_proof],
-      claim = prop,
-      rule = ProofRule.AND_ELIM,
-    )
+"""
 
-# TODO
-def OR_ELIM(prop, assumptions, size):
 
-  if size < 3:
-    return None
+def kinded(assumptions, asn_kind):
+  return [
+    asn for asn in assumptions
+    if asn.kind == asn_kind
+  ]
 
-  or_props = (prop for prop in assumptions if prop.kind == PropKind.OR)
 
-  for or_prop in or_props:
+@exact_size(1)
+@proofify(ProofKind.AND_ELIM)
+def AND_ELIM(goal, assumptions, size):
+  """
+  Proofs of the form
 
-    left_implies_this = Prop(PropKind.IMPLIES, or_prop.left, prop)
-    right_implies_this = Prop(PropKind.IMPLIES, or_prop.right, prop)
+    prove <[goal]> via and-elim:
+      prove <[prop] & [goal]> via [rule]: ...
 
-    for lit_size, rit_size in share(size - 2, 2):
-      lit_proof = find_proof(left_implies_this, assumptions, lit_size)
-      rit_proof = find_proof(right_implies_this, assumptions, rit_size)
+  """
+  for asn in kinded(assumptions, PropKind.AND):
+    if prop in [asn.left, asn.right]:
+      asn_proof = Proof.reiteration(asn)
+      return [proof]
 
-      if None not in [lit_proof, rit_proof]:
-        return Proof(
-          subproofs = [lit_proof, rit_proof],
-          claim     = prop,
-          rule      = ProofRule.OR_ELIM,
-        )
+@min_size(5)
+@proofify(ProofKind.OR_ELIM)
+def OR_ELIM(goal, assumptions, size):
+  """
+  Proofs of the form
 
-# TODO
-def IMPLIES_ELIM(prop, assumptions, size):
+    prove <[goal]> via or-elim:
+      prove <[left] | [right]> via [rule]: ...
+      assuming <[left]>, prove <[goal]> via [rule]: ...
+      assuming <[right]> prove <[goal]> via [rule]: ...
 
-  if size < 3:
-    return None
+  """
+  for asn in kinded(assumptions, PropKind.OR):
+    asn_proof = Proof.reiteration(asn)
+    for lsize, rsize in share(size - 4, 2):
+      lproof = find_proof(goal, assumptions, lsize, assuming=asn.left)
+      rproof = find_proof(goal, assumptions, rsize, assuming=asn.right)
+      if lproof is not None and rproof is not None:
+        return [asn_proof, lproof, rproof]
 
-  implies_props = (prop for prop in assumptions if prop.kind == PropKind.IMPLIES)
-  implies_this = (implies_prop for implies_prop in implies_props if implies_prop.right == prop)
-  for implies_prop in implies_this:
-    implies_proof = Proof.reiteration(implies_prop)
-    antecedent_proof = find_proof(implies_prop.left, assumptions, size - 2)
-    if antecedent_proof is not None:
-      return Proof(
-        subproofs = [implies_proof, antecedent_proof],
-        claim     = prop,
-        rule      = ProofRule.IMPLIES_ELIM,
-      )
+@min_size(3)
+@proofify(ProofKind.IMPLIES_ELIM)
+def IMPLIES_ELIM(goal, assumptions, size):
+  """
+  Proofs of the form
 
-# TODO
-def IFF_ELIM(prop, assumptions, size):
+    prove <[goal]> via implies-elim:
+      prove <[left] -> [goal]> via [rule]: ...
+      prove <[left]> via [rule]: ...
 
-  if size < 3:
-    return None
+  """
+  for asn in kinded(assumptions, PropKind.IMPLIES):
+    if asn.right == goal:
+      asn_proof = Proof.reiteration(asn)
+      left_proof = find_proof(asn.left, assumptions, size - 2)
+      if left_proof is not None:
+        return [asn_proof, left_proof]
 
-  iff_props = filter(lambda p: p.kind == PropKind.IFF, assumptions)
-  has_this = filter(lambda p: prop in [p.left, p.right], iff_props)
-  for iff_prop in has_this:
-    iff_proof = Proof.reiteration(iff_prop)
-    need_to_prove = iff_prop.left if prop == iff_prop.right else iff_prop.right
-    proof = find_proof(iff_prop.right, assumptions, size - 2)
-    if proof is not None:
-      return Proof(
-        subproofs = [iff_proof, proof],
-        claim     = prop,
-        rule      = ProofRule.IFF_ELIM,
-      )
+@min_size(3)
+@proofify(ProofKind.IFF_ELIM)
+def IFF_ELIM(goal, assumptions, size):
+  """
+  Proofs of the form
 
+    prove <[goal]> via iff-elim:
+      prove <[left] <-> [goal]> via [rule]: ...
+      prove <[left]> via [rule]: ...
+
+  or of the form
+
+    prove <[goal]> via iff-elim:
+      prove <[goal] <-> [right]> via [rule]: ...
+      prove <[right]> via [rule]: ...
+
+  """
+  for asn in kinded(assumptions, PropKind.IFF):
+    has_goal = goal in [asn.left, asn.right]
+    if has_goal:
+      asn_proof = Proof.reiteration(asn)
+      other_side = other(goal, [asn.left, asn.right])
+      other_proof = find_proof(other_size, assumptions, size - 2)
+      if other_proof is not None:
+        return [asn_proof, other_proof]
+
+@min_size(2)
+@proofify(ProofKind.NOT_ELIM)
 def NOT_ELIM(prop, assumptions, size):
+  """
+  Proofs of the form
 
-  if size < 2:
-    return None
+    prove <[goal]> via not-elim:
+      prove <~~[goal]> via [rule]: ...
 
-  double_negated = Prop(PropKind.NOT, Prop(PropKind.NOT, prop))
-  double_negated_proof = find_proof(double_negated, assumptions, size - 1)
-  if double_negated_proof is not None:
-    return Proof(
-      subproofs = [double_negated_proof],
-      claim     = prop,
-      rule      = ProofRule.NOT_ELIM,
-    )
+  """
+  notnot = Prop(PropKind.NOT, Prop(PropKind.NOT, prop))
+  notnot_proof = find_proof(notnot, assumptions, size - 1)
+  if notnot_proof is not None:
+    return [notnot_proof]
 
 
 # == # == # == #

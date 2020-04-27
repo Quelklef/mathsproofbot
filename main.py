@@ -2,7 +2,7 @@ from parse import parse
 from prove import prove_proposition
 from fitch import pretty_print
 
-string = '(a⇿(a∨(¬a⇾a)))'
+string = '(a⇾¬¬¬¬(¬b⇾a))'
 print(f'string: {string}\n')
 
 proposition = parse(string)
