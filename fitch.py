@@ -51,6 +51,23 @@ class Stmt:
       pretty_prereqs = ''
     return f'{self.lineno}. {self.claim}  [{self.kind.pretty}{pretty_prereqs}]'
 
+def prettify_lines(lines):
+
+  text_lins = []
+
+  for idx, line in enumerate(lines):
+    if isinstance(line, Stmt):
+      text_lins.append(' ' + line.pretty)
+    elif isinstance(line, Block):
+      next_line = idx != len(lines) - 1 and lines[idx + 1]
+      text_lins.append(line.pretty)
+      if isinstance(next_line, Block):
+        text_lins.append('')
+    else:
+      assert False
+
+  return '\n'.join(text_lins)
+
 class Bunch:
   """
   Represents many lines grouped together in a Fitch-style proof.
@@ -76,7 +93,7 @@ class Bunch:
 
   @property
   def pretty(self):
-    return '\n'.join(line.pretty for line in self.body)
+    return prettify_lines(self.body)
 
 class Block:
   """
@@ -120,11 +137,7 @@ class Block:
 
   @property
   def pretty(self):
-
-    pretty_body = '\n'.join(
-      ' ' + line.pretty if isinstance(line, Stmt) else line.pretty
-      for line in self.body
-    )
+    pretty_body = prettify_lines(self.body)
 
     bar = '│'
 
@@ -261,10 +274,4 @@ def arrange_aux(proof: Proof, parent_context: List[Line], lineno: int) -> Union[
       assumption = block_assumption,
       body = lines[1:],  # remove assumption back out
     )
-
-def pretty_print(proof: Proof) -> str:
-  fitch = arrange(proof)
-  return fitch.pretty
-
-
 

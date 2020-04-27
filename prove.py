@@ -644,9 +644,9 @@ def AND_ELIM(goal, assumptions, size):
 
   """
   for asn in kinded(assumptions, PropKind.AND):
-    if prop in [asn.left, asn.right]:
+    if goal in [asn.left, asn.right]:
       asn_proof = Proof.reiteration(asn)
-      return [proof]
+      return [asn_proof]
 
 @min_size(5)
 @proofify(ProofKind.OR_ELIM)
@@ -708,7 +708,7 @@ def IFF_ELIM(goal, assumptions, size):
     if has_goal:
       asn_proof = Proof.reiteration(asn)
       other_side = other(goal, [asn.left, asn.right])
-      other_proof = find_proof(other_size, assumptions, size - 2)
+      other_proof = find_proof(other_side, assumptions, size - 2)
       if other_proof is not None:
         return [asn_proof, other_proof]
 
@@ -731,10 +731,17 @@ def NOT_ELIM(prop, assumptions, size):
 # == # == # == #
 
 
-def prove_proposition(prop):
+def prove_proposition(prop, *, max_size=None):
+
   size = 1
+
   while True:
+
+    if max_size and size > max_size:
+      return None
+
     proof = find_proof(prop, [], size)
     if proof is not None:
       return proof
+
     size += 1

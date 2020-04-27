@@ -8,7 +8,7 @@ IFF_chars     = [pretty_IFF, '=']
 OR_chars      = [pretty_OR, '|']
 AND_chars     = [pretty_AND, '&', '^', '.']
 NOT_chars     = [pretty_NOT, '~', '-', '!']
-BOTTOM_chars  = [pretty_BOTTOM, '#', '_']
+BOTTOM_chars  = [pretty_BOTTOM, '_']
 
 BINOPS_chars = [
   *IMPLIES_chars,
