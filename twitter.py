@@ -1,12 +1,44 @@
 import tweepy
 import time
+import os
+import json
 
-# if it doesn't exist, create a twitter_auth.py with the following 4 values
-from auth_twitter import consumer_key, consumer_secret, access_token, access_token_secret
 from main import prove
 
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
+
+
+def get_auth():
+
+  if os.path.exists('auth.json'):
+    with open('auth.json', 'r') as f:
+      creds = json.loads(f.read())
+  else:
+    creds = {}
+
+  if 'consumer_key' not in creds:
+    creds['consumer_key'] = input('Twitter API Consumer Key: ')
+
+  if 'consumer_secret' not in creds:
+    creds['consumer_secret'] = input('Twitter API Consumer Secret: ')
+
+  auth = tweepy.OAuthHandler(creds['consumer_key'], creds['consumer_secret'])
+
+  if 'access_token' not in creds:
+    auth_url = auth.get_authorization_url()
+    print('Go here: ' + auth_url)
+    verifier = input('Verifier Pin: ')
+    auth.get_access_token(verifier)
+    creds['access_token'] = auth.access_token
+    creds['access_token_secret'] = auth.access_token_secret
+
+  auth.set_access_token(creds['access_token'], creds['access_token_secret'])
+
+  with open('auth.json', 'w') as f:
+    f.write(json.dumps(creds))
+
+  return auth
+
+auth = get_auth()
 api = tweepy.API(auth)
 
 def reply_to_tweet(tweet_id, response):
@@ -119,7 +151,7 @@ if __name__ == '__main__':
 
   import traceback
 
-  with open('log.log', 'a') as f:
+  with open('log.log', 'a') as log_f:
 
     while True:
       try:
@@ -130,7 +162,4 @@ if __name__ == '__main__':
       except Exception as e:
         s = traceback.format_exc()
         print(s)
-        f.write(s)
-
-        # Sleep for 10 hours before trying again
-        time.sleep(10 * 60 * 60)
+        log_f.write(s)
