@@ -582,11 +582,41 @@ try those statements which have been assumed, namely,
   <A>, <B>, and <~A>
 
 
-To be completely sincere, I am not sure if using this heuristic
-retains program correctness. Perhaps it is the case that
-some proof requires being "clever" in a way that violates
-this heuristic. However, I don't think /think/ this is the
-case, though I have yet to prove it.
+I don't think doing this sacrifices program correctness.
+
+To see why, consuder the case of proving something via an or-elim.
+A proof of <A> via an or-elim looks like the following:
+
+  prove <A> via or-elim:
+    prove <B | C> via [rule]: ...
+    assuming <B>, prove <A> via [rule]: ...    (1)
+    assuming <C>, prove <A> via [rule]: ...    (2)
+
+If <B | C> came from an assumption, this is all fine. I will
+now try to argue that if <B | C> /didn't/ come from an assumption,
+then doing an or-elim is redundant, in the sense that there's
+an easier way to prove <A> with a different rule. Establishing
+that justifies the use of my heuristic: if doing or-elim on
+non-assumed propositions is redundant, then we don't have to do so.
+
+So I have to argue that if <B | C> didn't come from an assumption,
+then doing an or-elim is redundant. Start by assuming that <B | C>
+didn't come from an assumption. That means that we proved it somehow,
+meaning that we either proved <B> or proved <C>. But note that,
+in doing the or-elim, we have to show that <B> entails <A> and that
+<C> entails <A>. (See lines annotated (1) and (2), respectively.)
+Thus, if we've proven <B> or <C>, then we can use that in conjunction
+with either (1) or (2) to prove <A> /directly/ without the need
+for or-elim.
+
+Thus or-elim on a non-assumed proposition is redundant and may be
+skipped in computation.
+
+I conject that similar reasoning holds for the other rules with
+wildcards.
+
+And a conjecture is good enough for me, since I don't want to do
+~8 more proofs.
 
 """
 
