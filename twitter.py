@@ -131,7 +131,8 @@ mathslogicbot_id = '2871456406'
 
 class MyStreamListener(tweepy.StreamListener):
   def on_status(self, tweet):
-    prove_tweet(tweet.id, tweet.text)
+    if tweet._json['user']['id'] == mathslogicbot_id:
+      prove_tweet(tweet.id, tweet.text)
 
 def listen_to_mathslogicbot():
   listener = MyStreamListener()
