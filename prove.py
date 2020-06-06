@@ -636,6 +636,13 @@ def BOTTOM_INTRO(goal, assumptions, size):
   for prop in assumptions:
     prop_proof = Proof.reiteration(prop)
 
+    if (prop.kind == PropKind.AND
+        and (prop.left == Prop(PropKind.NOT, prop.right)
+             or Prop(PropKind.NOT, prop.left) == prop.right)):
+      lproof = find_proof(prop.left, assumptions, size - 2)
+      rproof = find_proof(prop.right, assumptions, size - 2)
+      return [lproof, rproof]
+
     if prop.kind == PropKind.NOT:
       unwrapped = prop.contained
       unwrapped_proof = find_proof(unwrapped, assumptions, size - 2)

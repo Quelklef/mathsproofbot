@@ -15,7 +15,7 @@ def prove(string):
 
 if __name__ == '__main__':
 
-  string = '(a∨(b∨(¬b∨c)))'
+  string = '(a⇾((b∧¬b)⇾c))'
   print(f'string: {string}\n')
 
   proposition = parse(string)
