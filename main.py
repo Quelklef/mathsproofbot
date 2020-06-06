@@ -15,7 +15,8 @@ def prove(string):
 
 if __name__ == '__main__':
 
-  string = '(a⇾((b∧¬b)⇾c))'
+  #string = '(b.-b)>c'
+  string = '-(b.-b)'
   print(f'string: {string}\n')
 
   proposition = parse(string)

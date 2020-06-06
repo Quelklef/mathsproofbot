@@ -36,3 +36,9 @@ def other(x, ab):
   if x == a: return b
   if x == b: return a
   assert False, (x, ab)
+
+def union(sets):
+  result = set()
+  for set_ in sets:
+    result |= set_
+  return result

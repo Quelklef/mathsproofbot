@@ -4,7 +4,7 @@ import enum
 
 from prop import Prop, PropKind
 from pretty import *
-from util import indent, find, share, other
+from util import indent, find, share, other, union
 
 
 """
@@ -538,9 +538,40 @@ def NOT_INTRO(goal, assumptions, size):
   if subproof is not None:
     return [subproof]
 
+@min_size(3)
+@proofify(ProofKind.BOTTOM_INTRO)
+@prop_kind(PropKind.BOTTOM)
+def BOTTOM_INTRO(goal, assumptions, size):
+  """
+  Proofs of the form
+
+    prove <#> via bottom-intro:
+      prove <[prop]> via [rule]: ...
+      prove <~[prop]> via [rule]: ...
+
+  """
+
+  # try instantiating [prop] with all assumed props and subprops
+  all_props = union({ prop, *prop.subprops } for prop in assumptions)
+
+  for prop in all_props:
+    prop_proof = Proof.reiteration(prop)
+
+    if prop.kind == PropKind.NOT:
+      unwrapped = prop.contained
+      unwrapped_proof = find_proof(unwrapped, assumptions, size - 2)
+      if unwrapped_proof is not None:
+        return [unwrapped_proof, prop_proof]
+
+    else:
+      negated = Prop(PropKind.NOT, prop)
+      negated_proof = find_proof(negated, assumptions, size - 2)
+      if negated_proof is not None:
+        return [prop_proof, negated_proof]
+
 """
 
-All following proof generators, both INTRO and ELIM rules,
+All the proof generates for ELIM rules
 are tricky in a particular aspect, which is that they all,
 in a sense, include a wild card.
 
@@ -619,41 +650,6 @@ And a conjecture is good enough for me, since I don't want to do
 ~8 more proofs.
 
 """
-
-@min_size(3)
-@proofify(ProofKind.BOTTOM_INTRO)
-@prop_kind(PropKind.BOTTOM)
-def BOTTOM_INTRO(goal, assumptions, size):
-  """
-  Proofs of the form
-
-    prove <#> via bottom-intro:
-      prove <[prop]> via [rule]: ...
-      prove <~[prop]> via [rule]: ...
-
-  """
-
-  for prop in assumptions:
-    prop_proof = Proof.reiteration(prop)
-
-    if (prop.kind == PropKind.AND
-        and (prop.left == Prop(PropKind.NOT, prop.right)
-             or Prop(PropKind.NOT, prop.left) == prop.right)):
-      lproof = find_proof(prop.left, assumptions, size - 2)
-      rproof = find_proof(prop.right, assumptions, size - 2)
-      return [lproof, rproof]
-
-    if prop.kind == PropKind.NOT:
-      unwrapped = prop.contained
-      unwrapped_proof = find_proof(unwrapped, assumptions, size - 2)
-      if unwrapped_proof is not None:
-        return [unwrapped_proof, prop_proof]
-
-    else:
-      negated = Prop(PropKind.NOT, prop)
-      negated_proof = find_proof(negated, assumptions, size - 2)
-      if negated_proof is not None:
-        return [prop_proof, negated_proof]
 
 """
 

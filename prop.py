@@ -1,5 +1,6 @@
 from pretty import *
 from typing import *
+from util import union
 import enum
 
 class PropKind(enum.Enum):
@@ -88,6 +89,15 @@ class Prop:
 
   def __str__(self):
     return self.prettify(is_root=True)
+
+  @property
+  def subprops(self):
+    if self.kind == PropKind.NAME:
+      return set()
+    return set(self.args) | union(arg.subprops for arg in self.args)
+
+  def __hash__(self):
+    return hash((self.kind, self.args))
 
 if __name__ == '__main__':
 
