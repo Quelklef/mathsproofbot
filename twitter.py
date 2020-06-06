@@ -150,14 +150,21 @@ def prove_from_mathslogicbot_timeline():
 
 if __name__ == '__main__':
 
+  import sys
   import traceback
+
+  if len(sys.argv) != 2 or sys.argv[1] not in ['--prove-existing', '--listen']:
+    print('please call with --prove-existing or --listen')
+    quit()
 
   with open('log.log', 'a') as log_f:
 
     while True:
       try:
-        #prove_from_mathslogicbot_timeline()
-        listen_to_mathslogicbot()
+        if sys.argv[1] == '--listen':
+          listen_to_mathslogicbot()
+        else:
+          prove_from_mathslogicbot_timeline()
       except KeyboardInterrupt as e:
         break
       except Exception as e:
