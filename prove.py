@@ -555,19 +555,22 @@ def BOTTOM_INTRO(goal, assumptions, size):
   all_props = union({ prop, *prop.subprops } for prop in assumptions)
 
   for prop in all_props:
-    prop_proof = Proof.reiteration(prop)
 
     if prop.kind == PropKind.NOT:
       unwrapped = prop.contained
-      unwrapped_proof = find_proof(unwrapped, assumptions, size - 2)
-      if unwrapped_proof is not None:
-        return [unwrapped_proof, prop_proof]
+      for prop_proof_size, unwrapped_proof_size in share(size - 2, 2):
+        prop_proof = find_proof(prop, assumptions, prop_proof_size)
+        unwrapped_proof = find_proof(unwrapped, assumptions, unwrapped_proof_size)
+        if prop_proof is not None and unwrapped_proof is not None:
+          return [unwrapped_proof, prop_proof]
 
     else:
       negated = Prop(PropKind.NOT, prop)
-      negated_proof = find_proof(negated, assumptions, size - 2)
-      if negated_proof is not None:
-        return [prop_proof, negated_proof]
+      for prop_proof_size, negated_proof_size in share(size - 2, 2):
+        prop_proof = find_proof(prop, assumptions, prop_proof_size)
+        negated_proof = find_proof(negated, assumptions, negated_proof_size)
+        if prop_proof is not None and negated_proof is not None:
+          return [prop_proof, negated_proof]
 
 """
 
