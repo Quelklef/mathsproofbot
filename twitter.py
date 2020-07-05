@@ -108,7 +108,9 @@ def prove_tweet(tweet_id, tweet_text):
   print('Got a new theorem to prove: ' + tweet_text)
   proof = prove(tweet_text)
   proof = 'Proof:\n\n' + proof
-  print(proof)
+  print(proof if proof is not None else 'failed to prove')
+  if proof is None:
+    return
   long_reply_to_tweet(tweet_id, proof)
 
 def already_proven(status):

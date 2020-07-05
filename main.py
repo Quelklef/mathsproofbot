@@ -5,7 +5,8 @@ from fitch import arrange
 
 def prove(string):
   proposition = parse(string)
-  proof = prove_proposition(proposition)
+  # vvv If we've reached proposition size 30, there's probably a bug, so give up
+  proof = prove_proposition(proposition, max_size=25)
   if proof is None:
     return None
   fitch = arrange(proof)
@@ -15,8 +16,7 @@ def prove(string):
 
 if __name__ == '__main__':
 
-  string = '(b.-b)>c'
-  #string = '(a⇾((b∨¬b)∧a))'
+  string = '-(a>-a)'
   print(f'string: {string}\n')
 
   proposition = parse(string)
