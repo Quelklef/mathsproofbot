@@ -1,2 +1,4 @@
 log.log
 auth.json
+result
+**/__pycache__/

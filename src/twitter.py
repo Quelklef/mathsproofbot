@@ -9,6 +9,15 @@ from main import prove
 
 def get_auth():
 
+  # Get auth from MATHSPROOFBOT_AUTH (read-only)
+  # Or fallback to ./auth.json (read-write, interactive)
+
+  if 'MATHSPROOFBOT_AUTH' in os.environ:
+      creds = json.loads(os.environ.get('MATHSPROOFBOT_AUTH'))
+      auth = tweepy.OAuthHandler(creds['consumer_key'], creds['consumer_secret'])
+      auth.set_access_token(creds['access_token'], creds['access_token_secret'])
+      return auth
+
   if os.path.exists('auth.json'):
     with open('auth.json', 'r') as f:
       creds = json.loads(f.read())
@@ -135,6 +144,8 @@ class MyStreamListener(tweepy.StreamListener):
   def on_status(self, tweet):
     if tweet._json['user']['id'] == int(mathslogicbot_id):
       prove_tweet(tweet.id, tweet.text)
+  def on_error(self, code):
+    raise Exception(f"Twitter error: {code}")
 
 def listen_to_mathslogicbot():
   listener = MyStreamListener()
@@ -159,17 +170,16 @@ if __name__ == '__main__':
     print('please call with --prove-existing or --listen')
     quit()
 
-  with open('log.log', 'a') as log_f:
-
-    while True:
-      try:
-        if sys.argv[1] == '--listen':
-          listen_to_mathslogicbot()
-        else:
-          prove_from_mathslogicbot_timeline()
-      except KeyboardInterrupt as e:
-        break
-      except Exception as e:
-        s = traceback.format_exc()
-        print(s)
-        log_f.write(s)
+  while True:
+    try:
+      if sys.argv[1] == '--listen':
+        listen_to_mathslogicbot()
+      else:
+        prove_from_mathslogicbot_timeline()
+    except KeyboardInterrupt as e:
+      break
+    except Exception as e:
+      s = traceback.format_exc()
+      print(s)
+      time.sleep(10)
+      print("Trying again")
