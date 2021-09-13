@@ -9,6 +9,7 @@
     wantedBy = [ "default.target" ];
     script = ''
       export MATHSPROOFBOT_AUTH=$(cat /run/keys/mathsproofbot-auth)
+      export PYTHONUNBUFFERED=1  # suppress output buffering
       ${import ../default.nix { inherit pkgs; }}/run.sh --listen
     '';
     serviceConfig = {
