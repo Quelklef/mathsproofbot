@@ -1,6 +1,4 @@
-{ pkgs
-, auth ? builtins.readFile ../auth.json
-}:
+{ pkgs ? import ./pkgs.nix }:
 
 {
   systemd.services.mathsproofbot = {
@@ -18,5 +16,5 @@
     };
   };
 
-  deployment.keys.mathsproofbot-auth.text = auth;
+  deployment.keys.mathsproofbot-auth.text = (import <secrets>).mathsproofbot-auth;
 }

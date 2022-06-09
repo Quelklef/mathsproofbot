@@ -140,7 +140,7 @@ def already_proven(status):
 our_id = '1254278067985383425'
 mathslogicbot_id = '2871456406'
 
-class MyStreamListener(tweepy.StreamListener):
+class MyStreamListener(tweepy.Stream):
   def on_status(self, tweet):
     if tweet._json['user']['id'] == int(mathslogicbot_id):
       prove_tweet(tweet.id, tweet.text)
@@ -148,8 +148,10 @@ class MyStreamListener(tweepy.StreamListener):
     raise Exception(f"Twitter error: {code}")
 
 def listen_to_mathslogicbot():
-  listener = MyStreamListener()
-  stream = tweepy.Stream(auth=auth, listener=listener)
+  stream = MyStreamListener(**{
+    k: getattr(auth, k)
+    for k in ('consumer_key', 'consumer_secret', 'access_token', 'access_token_secret')
+  })
   print('Listening to @mathslogicbot...')
   stream.filter(follow=[mathslogicbot_id])
 
